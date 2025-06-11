@@ -12,16 +12,8 @@
                 opensta_sha256 = "sha256-gWAN+d6ioxQtxtgeq3vR+Zgq3nYRyn/u104L/xqumuY=";
 
                 env_exports = ''
-                    export BROWSER=firefox
-
                     export FIRTOOL_REV=${circt_rev}
                     export FIRTOOL_VER=1.44.0
-
-                    export PROJECT_ROOT="$(realpath .)"
-                    export BUILD_ROOT_RELATIVE="out"
-                    
-                    # Can modify this in other projects
-                    export TOP=GPIO
                 '';
             in 
         {
@@ -46,6 +38,23 @@
                     verilator
                     ninja
                     cmake
+                    gtkwave
+
+                    # Synthesis
+                    yosys
+
+                    # Formal Verification
+                    # sby
+                    yices
+                    z3
+
+                    # LaTeX
+                    texliveFull
+
+                    # Other
+                    python3
+                    nodePackages_latest.wavedrom-cli
+
 
                     # OpenSTA
                     (pkgs.stdenv.mkDerivation {
@@ -93,10 +102,9 @@
 
                     # Other
                     python3
+                    nodePackages_latest.wavedrom-cli
                 ];
                 shellHook = env_exports + ''
-                    export BUILD_ROOT=$PROJECT_ROOT/$BUILD_ROOT_RELATIVE
-
                     export CXX=/usr/bin/c++
                     export CC=/usr/bin/cc
                 '';
@@ -106,20 +114,84 @@
                 packages = with pkgs; [
                     # Chisel
                     (let
-                        circtpkgs = import (builtins.fetchTree { 
-                        type = "github"; 
-                        owner = "nixos"; 
-                        repo = "nixpkgs"; 
-                        rev = circt_rev; }) 
+                        circtpkgs = import (builtins.fetchTree {
+                        type = "github";
+                        owner = "nixos";
+                        repo = "nixpkgs";
+                        rev = circt_rev; })
                         { inherit (pkgs) system; };
                     in circtpkgs.circt)
-                                    
-                    # Scala 
+
+                    # Scala
                     sbt
                     scala-cli
 
                     # Verilator
-                    verilator
+                    # Verilator has issues with nix (VUart__pch.h.slow: No such file or director)
+                    # Installing from derivation needs to be done with clang or it will fail at runtime
+                    # a workaround is to install verilator via the system package manager
+                    (let
+                       systemcClang = pkgs.systemc.override { stdenv = pkgs.clangStdenv; };
+                     in
+                     pkgs.clangStdenv.mkDerivation rec {
+                       pname = "verilator";
+                       version = "5.006";
+
+                       VERILATOR_SRC_VERSION = "v${version}";
+
+                       src = pkgs.fetchFromGitHub {
+                         owner = pname;
+                         repo = pname;
+                         rev = "v${version}";
+                         hash = "sha256-YgK60fAYG5575uiWmbCODqNZMbRfFdOVcJXz5h5TLuE=";
+                       };
+
+                       enableParallelBuilding = true;
+                       buildInputs = [
+                         pkgs.perl
+                         pkgs.python3
+                         systemcClang
+                       ];
+                       nativeBuildInputs = [
+                         pkgs.makeWrapper
+                         pkgs.flex
+                         pkgs.bison
+                         pkgs.autoconf
+                         pkgs.help2man
+                         pkgs.git
+                       ];
+                       nativeCheckInputs = [
+                         pkgs.which
+                         pkgs.numactl
+                         pkgs.coreutils
+                       ];
+
+                       doCheck = pkgs.stdenv.hostPlatform.isLinux;
+                       checkTarget = "test";
+
+                       preConfigure = "autoconf";
+
+                       postPatch = ''
+                         patchShebangs bin/* src/* nodist/* docs/bin/* examples/xml_py/* \
+                         test_regress/{driver.pl,t/*.{pl,pf}} \
+                         ci/* ci/docker/run/* ci/docker/run/hooks/* ci/docker/buildenv/build.sh
+                         sed -i 's|/bin/echo|${pkgs.coreutils}/bin/echo|' bin/verilator
+                       '';
+
+                       env = {
+                         SYSTEMC_INCLUDE = "${pkgs.lib.getDev systemcClang}/include";
+                         SYSTEMC_LIBDIR = "${pkgs.lib.getLib systemcClang}/lib";
+                       };
+
+                       meta = with pkgs.lib; {
+                         description = "Fast and robust (System)Verilog simulator/compiler and linter";
+                         homepage = "https://www.veripool.org/verilator";
+                         license = with licenses; [ lgpl3Only artistic2 ];
+                         platforms = platforms.unix;
+                         maintainers = with maintainers; [ thoughtpolice amiloradovsky ];
+                       };
+                     })
+                    # The simplest way to use verilator is to install from package manager
                     ninja
                     cmake
 
@@ -133,10 +205,10 @@
                             rev = opensta_rev;
                             sha256 = opensta_sha256;
                         };
-                        buildInputs = [ 
-                            pkgs.cmake 
-                            pkgs.gcc 
-                            pkgs.tcl 
+                        buildInputs = [
+                            pkgs.cmake
+                            pkgs.gcc
+                            pkgs.tcl
 
                             pkgs.bison
                             pkgs.flex
@@ -147,9 +219,9 @@
                             pkgs.zlib
                             pkgs.tcllib
                         ];
-                        nativeBuildInputs = [ 
-                            pkgs.cmake 
-                            pkgs.tcl 
+                        nativeBuildInputs = [
+                            pkgs.cmake
+                            pkgs.tcl
                         ];
                         cmakeFlags = [
                             "-DTCL_LIBRARY=${pkgs.tcl}/lib/libtcl8.6.so"
@@ -168,17 +240,17 @@
                     texliveFull
 
                     # Other
-                    firefox
                     gcc
+                    clang
                     python3
+                    nodePackages_latest.wavedrom-cli
                 ];
                 shellHook = env_exports + ''
-                    export BUILD_ROOT=$PROJECT_ROOT/$BUILD_ROOT_RELATIVE
-
                     export CHISEL_FIRTOOL_PATH="${pkgs.circt}/bin"
+                    export CXX=clang++
+                    export CC=clang
                 '';
             };
         };
     };
 }
-
