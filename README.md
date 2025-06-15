@@ -45,4 +45,4 @@ If you encounter an issue when running sbt where it cannot compile compiler-brid
     - `nix develop --extra-experimental-features 'nix-command flakes' -c $SHELL`
     - This can be aliased to a more convenient command, and you may notice some ChiselWare repositories do this by containing a dev_shell.sh script to do this command.
 - Note that this can take up to a few minutes the first time it is run but will cache the results so subsequent times will be much faster.
-- That should be it, all the tools needed to develop ChiselWare cores should be available in your current shell session
+- That should be it, all the tools needed to develop ChiselWare cores should be available in your current shell session.
