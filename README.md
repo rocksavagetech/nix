@@ -32,7 +32,7 @@ cd $HOME/Downloads/dynamicfifo
 git fetch origin pull/6/head:nix_branch
 git checkout nix_branch
 
-# The files can alos just be added from this repo to the root of the repository being set up
+# The files can also just be added from this repo to the root of the repository being set up
 ```
 
 If you encounter an issue when running sbt where it cannot compile compiler-bridge_2.13, this is an issue with the specific version of scala and is fixed in the next release. See https://github.com/rocksavagetech/dynamicfifo/pull/6
